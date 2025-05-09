@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>女性友好度自测（男性版）</title>
+<style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+         margin:0;background:#f4f6fa;color:#333;}
+    header{background:#475fff;color:#fff;padding:1.2rem 1rem;text-align:center;}
+    main{max-width:860px;margin:2rem auto;padding:0 1.2rem;}
+    h2{margin:1.6rem 0 0.6rem}
+    fieldset{border:1px solid #ccc;border-radius:6px;margin:1rem 0;padding:1rem}
+    legend{font-weight:700}
+    .option{margin:.3rem 0;display:flex;align-items:center}
+    .option input{margin-right:.5rem}
+    button{padding:.7rem 1.4rem;background:#475fff;color:#fff;border:0;border-radius:4px;
+           font-size:1rem;cursor:pointer;}
+    button:disabled{background:#aaa;cursor:not-allowed;}
+    #result{background:#fff;border:1px solid #ddd;border-radius:6px;padding:1.4rem;display:none}
+    .score-num{font-size:2.2rem;font-weight:700;margin-right:.3rem}
+    .tag{display:inline-block;padding:.15rem .45rem;border-radius:4px;font-size:.9rem;color:#fff}
+    .high{background:#4caf50}.mid{background:#2196f3}.low{background:#ff9800}.poor{background:#f44336}
+    .warning{color:#f44336;font-weight:700;margin-top:1rem}
+    footer{margin:3rem 0 .5rem;text-align:center;font-size:.8rem;color:#666}
+</style>
+</head>
+<body>
+<header>
+  <h1>女性友好度测试（男性视角）</h1>
+</header>
+
+<main id="app">
+  <p>说明：共 20 题，预计 3–5 分钟。请按第一直觉作答，所有数据只保存在本地浏览器。</p>
+
+  <!-- 问卷输出容器 -->
+  <div id="questions"></div>
+
+  <button id="submitBtn" disabled>提交并查看结果</button>
+
+  <!-- 结果卡片 -->
+  <div id="result"></div>
+</main>
+
+<footer>
+  仅供学习与研究，无任何强制效力 © 2024
+</footer>
+
+<script>
+/* ========= 题库 ========= */
+const ITEMS = [
+  // id , 维度, 题干, 类型(likert/scene/lie), 反向?, 选项(仅场景)
+  [1,"RWP","在职场中，同等能力的女性理应获得与男性相同的晋升机会。","likert",false],
+  [2,"RWP","女性在家庭和照顾孩子方面应承担主要责任。","likert",true],
+  [3,"RWP","女同事提出新方案，你会：","scene",false,
+     ["积极倾听并基于内容评价","简短回应后依常规流程","让其他男同事先发言","认为她的观点可能不够可行"]],
+  [4,"RWP","女性对个人身体界限的要求应被无条件尊重。","likert",false],
+
+  [5,"RSW","和女性朋友/伴侣外出时，我乐意按双方收入比例分担支出。","likert",false],
+  [6,"RSW","男人买单是理所当然的，因为女性需要被照顾。","likert",true],
+  [7,"RSW","女同事借用你付费软件的授权，你会：","scene",false,
+     ["完全同意并指导","仅领导要求时同意","建议她自购","直接拒绝"]],
+  [8,"RSW","一旦我拥有资源（信息/人脉/资金），会公平分享给符合条件的女性，与男性无差别。","likert",false],
+
+  [9,"EMP","看到女性受歧视的新闻，我会难过并思考自己能做什么。","likert",false],
+  [10,"EMP","女性情绪化时难以理性沟通，因此我常选择暂时远离。","likert",true],
+  [11,"EMP","伴侣因工作压力情绪低落，你通常：","scene",false,
+     ["倾听并询问需求","直接给解决方案","让她冷静后再谈","回避以免被影响"]],
+  [12,"EMP","即便难以完全理解女性经历，我也尽量站在她们的角度思考。","likert",false],
+
+  [13,"EGA","法律应保障女性在生育期间不被职业歧视。","likert",false],
+  [14,"EGA","男性天生比女性更适合领导职位。","likert",true],
+  [15,"EGA","能力相当的男女候选人，最后一席岗位你会：","scene",false,
+     ["看表现并考虑团队多样性","抛硬币","倾向男性以降低风险","推迟决定另招人"]],
+  [16,"EGA","在公共讨论中，男性应避免“mansplaining”（不必要地向女性解释她们已掌握的内容）。","likert",false],
+
+  [17,"LIE","我从未对任何人不耐烦过。","likert",false],
+  [18,"LIE","即使在匿名测试里，我也不会说任何不正确的话。","likert",false],
+  [19,"LIE","有时我会忽视他人感受以完成自己的目标。","likert",true], //反向=诚实
+  [20,"LIE","过去一年里，我从未做过任何让我后悔的事。","likert",false],
+];
+
+/* ========= DOM 构建 ========= */
+const qBox = document.getElementById('questions');
+ITEMS.forEach(it =>{
+   const fs = document.createElement('fieldset');
+   fs.id = 'q'+it[0];
+   const lg = document.createElement('legend');
+   lg.textContent = `${it[0]}. ${it[2]}`;
+   fs.appendChild(lg);
+
+   if(it[3]==="likert"){
+      const labels=["1 完全不同意","2","3","4","5 完全同意"];
+      for(let i=1;i<=5;i++){
+         const div = document.createElement('div');
+         div.className='option'
+         const inp = document.createElement('input');
+         inp.type='radio';
+         inp.name='q'+it[0];
+         inp.value=i;
+         div.appendChild(inp);
+         div.appendChild(document.createTextNode(labels[i-1]));
+         fs.appendChild(div);
+      }
+   }else{ // scene
+      const opts = it[5];
+      opts.forEach((txt,idx)=>{
+        const div=document.createElement('div');
+        div.className='option';
+        const inp=document.createElement('input');
+        inp.type='radio';
+        inp.name='q'+it[0];
+        inp.value=4-idx; //A=4 etc
+        div.appendChild(inp);
+        div.appendChild(document.createTextNode(String.fromCharCode(65+idx)+'. '+txt));
+        fs.appendChild(div);
+      });
+   }
+   qBox.appendChild(fs);
+});
+
+/* ========= 监听填答完整 ========= */
+qBox.addEventListener('change', ()=>{
+   const done = [...document.querySelectorAll('fieldset')].every(fs=>{
+       return !!fs.querySelector('input[type=radio]:checked');
+   });
+   document.getElementById('submitBtn').disabled = !done;
+});
+
+/* ========= 计分逻辑 ========= */
+function calc(){
+   const raw={RWP:[],RSW:[],EMP:[],EGA:[],LIE:[]};
+   ITEMS.forEach(it=>{
+      const val = Number(document.querySelector(`input[name=q${it[0]}]:checked`).value);
+      let score = val;
+      if(it[3]==="scene"){ // 1~4 →先保留，再乘 1.25 得 1.25~5
+          score = val*1.25;
+      }
+      if(it[4]) score = 6 - score; //反向
+      raw[it[1]].push(score);
+   });
+
+   const avg = dim => raw[dim].reduce((a,b)=>a+b)/raw[dim].length;
+
+   const lieTotal = raw.LIE.reduce((a,b)=>a+b,0);
+   const res = {
+      RWP: avg('RWP'),
+      RSW: avg('RSW'),
+      EMP: avg('EMP'),
+      EGA: avg('EGA'),
+      LIE: lieTotal,
+   };
+   res.WFI = (res.RWP+res.RSW+res.EMP+res.EGA)/4;
+   return res;
+}
+
+/* ========= 结果呈现 ========= */
+document.getElementById('submitBtn').onclick = ()=>{
+    const s = calc();
+    const box=document.getElementById('result');
+    box.style.display='block';
+    let level,text,tagClass;
+    if(s.WFI>=4.1){level="高度女性友好";tagClass="high";}
+    else if(s.WFI>=3.1){level="中等友好";tagClass="mid";}
+    else if(s.WFI>=2.1){level="低友好";tagClass="low";}
+    else {level="显著不足";tagClass="poor";}
+
+    box.innerHTML = `
+      <h2>测试结果</h2>
+      <p><span class="score-num">${s.WFI.toFixed(2)}</span>
+         / 5.00  <span class="tag ${tagClass}">${level}</span></p>
+      <h3>分维度平均</h3>
+      <ul>
+        <li>人格尊重度 (RWP)：${s.RWP.toFixed(2)}</li>
+        <li>资源共享乐意 (RSW)：${s.RSW.toFixed(2)}</li>
+        <li>共情能力 (EMP)：${s.EMP.toFixed(2)}</li>
+        <li>平等/反刻板 (EGA)：${s.EGA.toFixed(2)}</li>
+      </ul>
+      <h3>真实性检查</h3>
+      <p>LIE 总分：${s.LIE.toFixed(0)} / 20　${s.LIE>=14?'<span class="warning">→ 得分过高，可能存在社会期许反应，结果仅供参考。</span>':'（正常范围）'}</p>
+    `;
+
+    window.scrollTo({top:box.offsetTop-20,behavior:"smooth"});
+};
+</script>
+</body>
+</html>
